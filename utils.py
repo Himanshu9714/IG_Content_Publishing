@@ -38,7 +38,10 @@ def makeApiCall(url, endpointParams, type):
     """
 
     if type == "POST":
-        data = requests.post(url, endpointParams)
+        if "CAROUSEL" in url:
+            data = requests.post(url)
+        else:
+            data = requests.post(url, endpointParams)
     else:
         data = requests.get(url, endpointParams)
 

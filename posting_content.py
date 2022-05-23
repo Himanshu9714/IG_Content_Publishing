@@ -171,6 +171,7 @@ def createCarouselContainer(params, imageMediaObjectsResponse):
             endpointParams["children"] += f"{obj['json_data']['id']}"
         else:
             endpointParams["children"] += f"%2C{obj['json_data']['id']}"
+    url += f"?caption={endpointParams['caption']}&media_type={endpointParams['media_type']}&children={endpointParams['children']}&access_token={endpointParams['access_token']}"
 
     return makeApiCall(url, endpointParams, "POST")
 
@@ -180,11 +181,12 @@ params = getCreds()
 params["media_type"] = os.environ.get("MEDIA_TYPE")
 params["media_url"] = os.environ.get("MEDIA_URL")
 params["caption"] = os.environ.get("CAPTION")
-params["media_url_1"] = os.environ.get("MEDIA_URL_1")
-params["media_url_2"] = os.environ.get("MEDIA_URL_2")
 
 # create a media object through the api
 imageMediaObjectResponse = createMediaObject(params)
+
+params["media_url_1"] = os.environ.get("MEDIA_URL_1")
+params["media_url_2"] = os.environ.get("MEDIA_URL_2")
 imageMediaObjectsResponse = createCarouselMediaObject(params)
 carouselContainerResponse = createCarouselContainer(params, imageMediaObjectsResponse)
 carouselContainerId = carouselContainerResponse["json_data"]["id"]
