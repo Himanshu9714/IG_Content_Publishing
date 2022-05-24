@@ -7,3 +7,5 @@ venv/
 
 decoder-40-330.ckpt
 encoder-40-330.ckpt
+
+.DS_Store

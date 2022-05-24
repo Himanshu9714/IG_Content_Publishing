@@ -2,7 +2,7 @@ import time
 from utils import getCreds, makeApiCall
 from dotenv import load_dotenv
 import os
-import facebook
+from instagrapi import Client
 
 load_dotenv()
 
@@ -176,12 +176,16 @@ def createCarouselContainer(params, imageMediaObjectsResponse):
 
     return makeApiCall(url, endpointParams, "POST")
 
+def upload_photo_to_story():
+    cl = Client()
+    cl.login(os.environ.get("USERNAME"), os.environ.get("PASSWORD"))
+    cl.photo_upload_to_story(os.environ.get("IMAGE_PATH_TO_STORY"), caption="Jay Shree Ram!")
 
-def publish_content():
+def publish_content(text):
     params = getCreds()
     params["media_type"] = os.environ.get("MEDIA_TYPE")
     params["media_url"] = os.environ.get("MEDIA_URL")
-    params["caption"] = os.environ.get("CAPTION")
+    params["caption"] = os.environ.get("CAPTION")+text
 
     # create a media object through the api
     imageMediaObjectResponse = createMediaObject(params)
