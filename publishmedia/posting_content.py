@@ -2,6 +2,7 @@ import time
 from utils import getCreds, makeApiCall
 from dotenv import load_dotenv
 import os
+import facebook
 
 load_dotenv()
 
@@ -176,58 +177,149 @@ def createCarouselContainer(params, imageMediaObjectsResponse):
     return makeApiCall(url, endpointParams, "POST")
 
 
-# def publishContent():
-params = getCreds()
-params["media_type"] = os.environ.get("MEDIA_TYPE")
-params["media_url"] = os.environ.get("MEDIA_URL")
-params["caption"] = os.environ.get("CAPTION")
+def publish_content():
+    params = getCreds()
+    params["media_type"] = os.environ.get("MEDIA_TYPE")
+    params["media_url"] = os.environ.get("MEDIA_URL")
+    params["caption"] = os.environ.get("CAPTION")
 
-# create a media object through the api
-imageMediaObjectResponse = createMediaObject(params)
+    # create a media object through the api
+    imageMediaObjectResponse = createMediaObject(params)
 
-params["media_url_1"] = os.environ.get("MEDIA_URL_1")
-params["media_url_2"] = os.environ.get("MEDIA_URL_2")
-imageMediaObjectsResponse = createCarouselMediaObject(params)
-carouselContainerResponse = createCarouselContainer(params, imageMediaObjectsResponse)
-carouselContainerId = carouselContainerResponse["json_data"]["id"]
-# id of the media object that was created
-imageMediaObjectId = imageMediaObjectResponse["json_data"]["id"]
-imageMediaStatusCode = "IN_PROGRESS"
+    params["media_url_1"] = os.environ.get("MEDIA_URL_1")
+    params["media_url_2"] = os.environ.get("MEDIA_URL_2")
+    imageMediaObjectsResponse = createCarouselMediaObject(params)
+    carouselContainerResponse = createCarouselContainer(
+        params, imageMediaObjectsResponse
+    )
+    carouselContainerId = carouselContainerResponse["json_data"]["id"]
+    # id of the media object that was created
+    imageMediaObjectId = imageMediaObjectResponse["json_data"]["id"]
+    imageMediaStatusCode = "IN_PROGRESS"
 
-print(f"\n---- IMAGE MEDIA OBJECT -----\n\tID:\t {imageMediaObjectId}")
+    print(f"\n---- IMAGE MEDIA OBJECT -----\n\tID:\t {imageMediaObjectId}")
 
-while (
-    imageMediaStatusCode != "FINISHED"
-):  # keep checking until the object status is finished
-    imageMediaObjectStatusResponse = getMediaObjectStatus(imageMediaObjectId, params)
-    imageMediaStatusCode = imageMediaObjectStatusResponse["json_data"]["status_code"]
-    if carouselContainerId:
-        carouselContainerStatusResponse = getMediaObjectStatus(
-            carouselContainerId, params
+    while (
+        imageMediaStatusCode != "FINISHED"
+    ):  # keep checking until the object status is finished
+        imageMediaObjectStatusResponse = getMediaObjectStatus(
+            imageMediaObjectId, params
         )
-        carouselMediaStatusCode = carouselContainerStatusResponse["json_data"][
+        imageMediaStatusCode = imageMediaObjectStatusResponse["json_data"][
             "status_code"
         ]
+        if carouselContainerId:
+            carouselContainerStatusResponse = getMediaObjectStatus(
+                carouselContainerId, params
+            )
+            carouselMediaStatusCode = carouselContainerStatusResponse["json_data"][
+                "status_code"
+            ]
+            print(
+                f"\n---- IMAGE MEDIA OBJECT STATUS -----\n\tStatus Code:\t{carouselMediaStatusCode}"
+            )
+
         print(
-            f"\n---- IMAGE MEDIA OBJECT STATUS -----\n\tStatus Code:\t{carouselMediaStatusCode}"
+            f"\n---- IMAGE MEDIA OBJECT STATUS -----\n\tStatus Code:\t{imageMediaStatusCode}"
         )
 
-    print(
-        f"\n---- IMAGE MEDIA OBJECT STATUS -----\n\tStatus Code:\t{imageMediaStatusCode}"
-    )
+        # wait 5 seconds if the media object is still being processed
+        time.sleep(5)
 
-    # wait 5 seconds if the media object is still being processed
-    time.sleep(5)
-
-# publish the post to instagram
-if carouselContainerId:
-    publishCarouselResponse = publishMedia(carouselContainerId, params)
-publishImageResponse = publishMedia(imageMediaObjectId, params)
-# json response from ig api
-print(
-    f'\n---- PUBLISHED IMAGE RESPONSE -----\n\tResponse:{publishImageResponse["json_data_pretty"]}'
-)
-if publishCarouselResponse:
+    # publish the post to instagram
+    if carouselContainerId:
+        publishCarouselResponse = publishMedia(carouselContainerId, params)
+    publishImageResponse = publishMedia(imageMediaObjectId, params)
+    # json response from ig api
     print(
-        f'\n---- PUBLISHED CAROUSEL RESPONSE -----\n\tResponse:{publishCarouselResponse["json_data_pretty"]}'
+        f'\n---- PUBLISHED IMAGE RESPONSE -----\n\tResponse:{publishImageResponse["json_data_pretty"]}'
     )
+    if publishCarouselResponse:
+        print(
+            f'\n---- PUBLISHED CAROUSEL RESPONSE -----\n\tResponse:{publishCarouselResponse["json_data_pretty"]}'
+        )
+
+
+def get_fb_user_id(params):
+    """
+    API Endpoint:
+            https://graph.facebook.com/v13.0/me/media?&access_token={access-token}
+    """
+    url = params["endpoint_base"] + "me"
+    endpointParams = dict()
+    endpointParams["access_token"] = params["access_token"]
+    return makeApiCall(url, endpointParams, "GET")
+
+
+def get_list_of_all_pages(user_id, params):
+    """
+    API Endpoint:
+            https://graph.facebook.com/v13.0/{user_id}/accounts?access_token={access-token}
+    """
+
+    url = params["endpoint_base"] + f"{user_id}/accounts"
+    endpointParams = dict()
+    endpointParams["access_token"] = params["access_token"]
+    return makeApiCall(url, endpointParams, "GET")
+
+
+def get_page_access_token_from_user_access_token(params, page_id):
+    """
+    API Endpoint:
+        https://graph.facebook.com/{page_id}?fields=access_token&access_token={access_token}
+
+    """
+    url = params["graph_domain"] + f"{page_id}?fields=access_token"
+    endpointParams = dict()
+    endpointParams["access_token"] = params["access_token"]
+    return makeApiCall(url, endpointParams, "GET")
+
+
+def upload_post_to_fb(params, page_id, page_access_token):
+    """
+    API Endpoints:
+        Message: "https://graph.facebook.com/{page-id}/feed?message=Hello Fans!&access_token={page-access-token}"
+
+        Photo: "https://graph.facebook.com/{page-id}/photos?url={path-to-photo}&access_token={page-access-token}"
+
+    """
+
+    endpointParams = dict()
+
+    if params["media_type"] == "IMAGE":
+        url = params["graph_domain"] + f"{page_id}/photos"
+        endpointParams["url"] = params["media_url"]
+        endpointParams["caption"] = "This is my first post"
+    else:
+        url = params["graph_domain"] + f"{page_id}/feed"
+        endpointParams[
+            "message"
+        ] = "I just posted automatically with python! Jay Shree Ram!"
+    endpointParams["access_token"] = page_access_token
+    return makeApiCall(url, endpointParams, "POST")
+
+
+def publish_post_to_fb():
+    params = getCreds()
+    params["media_type"] = os.environ.get("MEDIA_TYPE")
+    params["media_url"] = os.environ.get("MEDIA_URL")
+
+    # Get the facebook user id
+    userIdObjectResponse = get_fb_user_id(params)
+
+    # Get the list of all the pages the user have
+    # Here we've only one page so we access the id of the one page only as page_id.
+    # page_id will be used to generate page_access_token and publish posts to page
+    listOfAllPagesResponse = get_list_of_all_pages(
+        userIdObjectResponse["json_data"]["id"], params
+    )
+    page_id = listOfAllPagesResponse["json_data"]["data"][0]["id"]
+
+    # Generate page access token to allows posting on facebook page
+    pageAccessTokenResponse = get_page_access_token_from_user_access_token(
+        params, page_id
+    )
+    page_access_token = pageAccessTokenResponse["json_data"]["access_token"]
+
+    # Upload post to facebook
+    upload_post_to_fb(params, page_id, page_access_token)
