@@ -2,7 +2,6 @@ import time
 from utils import getCreds, makeApiCall
 from dotenv import load_dotenv
 import os
-import facebook
 
 load_dotenv()
 
@@ -299,6 +298,31 @@ def upload_post_to_fb(params, page_id, page_access_token):
     return makeApiCall(url, endpointParams, "POST")
 
 
+def upload_video_to_fb(params, page_id, page_access_token):
+    """
+    API Endpoint:
+        Sample Local File Request:
+            "https://graph-video.facebook.com/v13.0/{page_id}/videos" \
+            -F "access_token={page_access_token}" \
+            -F "source=@/Users/...incredible.mov"
+
+        Sample Hosted File Request:
+            "https://graph-video.facebook.com/v13.0/{page_id}/videos" \
+            -F "access_token={page_access_token}" \
+            -F "file_url=https://socialsizz.../incredible.mov"
+    """
+    endpointParams = dict()
+    url = params["endpoint_base"] + f"{page_id}/videos"
+    endpointParams["access_token"] = page_access_token
+    if ("http" in endpointParams["media_url"]) or (
+        "https" in endpointParams["media_url"]
+    ):
+        endpointParams["file_url"] = params["media_url"]
+    else:
+        endpointParams["source"] = "@" + params["media_url"]
+    return makeApiCall(url, endpointParams, "POST")
+
+
 def publish_post_to_fb():
     params = getCreds()
     params["media_type"] = os.environ.get("MEDIA_TYPE")
@@ -321,5 +345,9 @@ def publish_post_to_fb():
     )
     page_access_token = pageAccessTokenResponse["json_data"]["access_token"]
 
-    # Upload post to facebook
-    upload_post_to_fb(params, page_id, page_access_token)
+    if params["media_type"] == "IMAGE":
+        # Upload post (feed or image) to facebook
+        upload_post_to_fb(params, page_id, page_access_token)
+
+    elif params["media_type"] == "VIDEO":
+        upload_video_to_fb(params, page_id, page_access_token)
